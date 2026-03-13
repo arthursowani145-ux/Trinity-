@@ -145,11 +145,11 @@ Citation
 If you use this framework in research, please cite:
 
 ```bibtex
-@article{trinity2024,
+@article{trinity2026,
   title={The Trinity Formula: A Universal Framework for Phase Transitions},
   author={[Authors]},
   journal={arXiv preprint},
-  year={2024},
+  year={2026},
   url={https://github.com/[repo]/trinity-formula}
 }
 ```
@@ -172,7 +172,7 @@ Contact
 
 - Issues: [GitHub Issues](https://github.com/[repo]/trinity-formula/issues)
 - Discussions: [GitHub Discussions](https://github.com/[repo]/trinity-formula/discussions)
-- Email: [contact]
+- Email:arthursowani145@gmail.com 
 
 ---
 
