@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trinity"
+description = "A universal framework for predicting phase transitions in complex systems"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Trinity Team", email = "team@trinity-framework.org"}
+]
+keywords = ["phase-transitions", "critical-phenomena", "risk-modeling", "physics", "machine-learning"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "numpy>=1.20.0",
+    "pandas>=1.3.0",
+    "scipy>=1.7.0",
+    "scikit-learn>=1.0.0",
+    "matplotlib>=3.4.0",
+    "pyyaml>=5.4.0",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = ["pytest>=6.0", "pytest-cov>=2.0", "black>=22.0", "flake8>=4.0", "mypy>=0.950"]
+notebooks = ["jupyter>=1.0", "seaborn>=0.11", "plotly>=5.0"]
+
+[project.scripts]
+trinity = "trinity.cli:main"
+trinity-validate = "trinity.scripts.validate:main"
+trinity-calibrate = "trinity.scripts.calibrate:main"
+trinity-predict = "trinity.scripts.predict:main"
+
+[project.urls]
+Homepage = "https://github.com/trinity-team/trinity"
+Documentation = "https://trinity-framework.readthedocs.io"
+Repository = "https://github.com/trinity-team/trinity.git"
+Issues = "https://github.com/trinity-team/trinity/issues"
+
+[tool.setuptools_scm]
+write_to = "trinity/_version.py"
