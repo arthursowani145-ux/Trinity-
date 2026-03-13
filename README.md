@@ -243,7 +243,7 @@ Financial Markets	log(volatility)	Correlation complexity	Time to maturity	Multi-
 Citation
 
 ```bibtex
-@software{trinity2024,
+@software{trinity2026,
   title={Trinity: A Universal Framework for Phase Transitions},
   author={Trinity Team},
   url={https://github.com/arthursowani145-ux/Trinity-},
@@ -467,7 +467,7 @@ Contact
 - Issues: [GitHub Issues](https://github.com/[repo]/trinity-formula/issues)
 - Discussions: [GitHub Discussions](https://github.com/[repo]/trinity-formula/discussions)
 - Email:arthursowani145@gmail.com 
-
+- 🔗 https://doi.org/10.5281/zenodo.18992402
 ---
 
 The formula is a language, not a model. Learn to speak it.# Trinity-
