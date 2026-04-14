@@ -572,3 +572,188 @@ if __name__ == '__main__':
     print(f"URL: http://localhost:5000")
     print("=" * 60)
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=False)
+
+@app.route('/analyze_url', methods=['POST'])
+def analyze_url():
+    """Download file from URL and analyze (supports EDF, BDF, GDF, BrainVision, etc.)"""
+    data = request.get_json()
+    file_url = data.get('url')
+    mode = data.get('mode', 'quick')
+    patient_id = data.get('patient_id', 'remote')
+
+    if not file_url:
+        return jsonify({'error': 'No URL provided'}), 400
+
+    job_id = str(uuid.uuid4())[:12]
+    filename = file_url.split('/')[-1].split('?')[0] or 'file.edf'
+
+    jobs[job_id] = {
+        'id': job_id,
+        'status': 'downloading',
+        'progress': 10,
+        'mode': mode,
+        'filename': filename,
+        'patient_id': patient_id,
+        'url': file_url,
+        'created_at': datetime.now().isoformat()
+    }
+
+    def download_and_analyze():
+        filepath = None
+        try:
+            jobs[job_id]['progress'] = 20
+            
+            # Download file with proper headers
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (compatible; Trinity-Bot/1.0)',
+                'Accept': '*/*'
+            }
+            response = requests.get(file_url, timeout=300, stream=True, headers=headers)
+            
+            if response.status_code != 200:
+                raise Exception(f"Download failed: HTTP {response.status_code}")
+            
+            filepath = UPLOAD_FOLDER / f"{job_id}_{filename}"
+            
+            # Get total size for progress
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+            
+            with open(filepath, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        progress = 20 + int(30 * downloaded / total_size)
+                        jobs[job_id]['progress'] = min(progress, 50)
+            
+            jobs[job_id]['progress'] = 50
+            
+            # Analyze
+            if mode == 'quick':
+                result = run_trinity_quick(filepath, patient_id)
+            else:
+                result = run_trinity_deep(filepath, patient_id)
+
+            if result.get('success', False):
+                timeline = result.get('timeline', [])
+                charts = generate_clinical_charts(timeline, result)
+                clinical_report = generate_clinical_report_html(result, charts)
+
+                jobs[job_id]['result'] = result
+                jobs[job_id]['charts'] = charts
+                jobs[job_id]['clinical_report'] = clinical_report
+                jobs[job_id]['status'] = 'completed'
+                jobs[job_id]['progress'] = 100
+            else:
+                jobs[job_id]['status'] = 'failed'
+                jobs[job_id]['error'] = result.get('error', 'Analysis failed')
+        
+        except requests.exceptions.Timeout:
+            jobs[job_id]['status'] = 'failed'
+            jobs[job_id]['error'] = 'Download timeout (5 minutes)'
+        except Exception as e:
+            jobs[job_id]['status'] = 'failed'
+            jobs[job_id]['error'] = str(e)
+        
+        finally:
+            if filepath and filepath.exists():
+                try:
+                    filepath.unlink()
+                except:
+                    pass
+
+    thread = threading.Thread(target=download_and_analyze)
+    thread.start()
+
+    return jsonify({'job_id': job_id})
+
+@app.route('/save_result/<job_id>', methods=['POST'])
+def save_result(job_id):
+    """Save analysis result permanently (user requests to keep it)"""
+    if job_id not in jobs:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    job = jobs[job_id]
+    if job['status'] != 'completed':
+        return jsonify({'error': 'Analysis not complete'}), 400
+    
+    # Create permanent storage
+    saved_results_dir = BASE_DIR / 'saved_results'
+    saved_results_dir.mkdir(exist_ok=True)
+    
+    # Save with timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    saved_filename = f"{job['patient_id']}_{job['filename']}_{timestamp}"
+    
+    # Save JSON result
+    json_path = saved_results_dir / f"{saved_filename}.json"
+    with open(json_path, 'w') as f:
+        json.dump(job.get('result', {}), f, indent=2)
+    
+    # Save clinical report if available
+    if job.get('clinical_report'):
+        report_path = saved_results_dir / f"{saved_filename}_report.txt"
+        with open(report_path, 'w') as f:
+            f.write(job['clinical_report'])
+    
+    return jsonify({
+        'success': True,
+        'saved_files': {
+            'json': str(json_path),
+            'report': str(report_path) if job.get('clinical_report') else None
+        }
+    })
+
+@app.route('/list_saved_results')
+def list_saved_results():
+    """List all saved analysis results"""
+    saved_results_dir = BASE_DIR / 'saved_results'
+    saved_results_dir.mkdir(exist_ok=True)
+    
+    results = []
+    for file in saved_results_dir.glob('*.json'):
+        stat = file.stat()
+        results.append({
+            'filename': file.name,
+            'size': stat.st_size,
+            'modified': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            'url': f"/download_saved/{file.name}"
+        })
+    
+    # Sort by newest first
+    results.sort(key=lambda x: x['modified'], reverse=True)
+    
+    return jsonify({'results': results})
+
+@app.route('/download_saved/<filename>')
+def download_saved(filename):
+    """Download a saved result file"""
+    saved_results_dir = BASE_DIR / 'saved_results'
+    file_path = saved_results_dir / filename
+    
+    if not file_path.exists():
+        return "File not found", 404
+    
+    return send_file(file_path, as_attachment=True)
+
+@app.route('/delete_saved/<filename>', methods=['DELETE'])
+def delete_saved(filename):
+    """Delete a saved result"""
+    saved_results_dir = BASE_DIR / 'saved_results'
+    file_path = saved_results_dir / filename
+    
+    if file_path.exists():
+        file_path.unlink()
+        # Also delete associated report if exists
+        report_path = saved_results_dir / filename.replace('.json', '_report.txt')
+        if report_path.exists():
+            report_path.unlink()
+        return jsonify({'success': True})
+    
+    return jsonify({'error': 'File not found'}), 404
+
+# Update the status endpoint to include can_save flag
+# (Find the status function and add this line)
+# In @app.route('/status/<job_id>'), add:
+# response['can_save'] = job['status'] == 'completed' and not job.get('batch', False)

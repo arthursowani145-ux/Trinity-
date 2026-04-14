@@ -455,3 +455,181 @@
     </script>
 </body>
 </html>
+<!-- URL Input Section -->
+<div class="upload-card" style="margin-top: 1rem;">
+    <div class="panel-title">🔗 Or fetch from URL</div>
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <input type="text" id="urlInput" placeholder="https://physionet.org/files/chbmit/1.0.0/chb03/chb03_01.edf" 
+               style="flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.6rem; border-radius: 0.5rem; color: white; font-size: 0.7rem; font-family: monospace;">
+        <button class="btn btn-secondary" id="fetchUrlBtn">🌐 Fetch from URL</button>
+    </div>
+    <div class="supported-badge" style="margin-top: 0.5rem;">
+        Supports: PhysioNet, GIN, Zenodo, or any direct EDF/BDF/GDF URL
+    </div>
+</div>
+
+<script>
+// Add URL fetch functionality
+document.getElementById('fetchUrlBtn')?.addEventListener('click', async () => {
+    const url = document.getElementById('urlInput').value.trim();
+    if (!url) {
+        alert('Please enter a URL');
+        return;
+    }
+    
+    const patientId = document.getElementById('patientId').value.trim();
+    const mode = currentMode;
+    
+    document.getElementById('progressContainer').style.display = 'block';
+    document.getElementById('resultsCard').style.display = 'none';
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('progressText').textContent = 'Downloading from URL...';
+    document.getElementById('fetchUrlBtn').disabled = true;
+    document.getElementById('fetchUrlBtn').innerHTML = '<span class="processing">⏳ Downloading...</span>';
+    
+    try {
+        const response = await fetch('/analyze_url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: url,
+                mode: mode,
+                patient_id: patientId
+            })
+        });
+        const data = await response.json();
+        if (data.error) {
+            alert(data.error);
+            resetUI();
+            return;
+        }
+        currentJobId = data.job_id;
+        if (statusInterval) clearInterval(statusInterval);
+        statusInterval = setInterval(checkStatus, 2000);
+    } catch (err) {
+        console.error(err);
+        alert('Failed to fetch URL');
+        resetUI();
+    }
+});
+</script>
+<!-- Add after the analyze button -->
+<div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 1rem;">
+    <button class="btn btn-secondary" id="saveResultBtn" style="display: none;">💾 Save This Result</button>
+    <button class="btn btn-secondary" id="viewHistoryBtn">📚 View Saved Results</button>
+</div>
+
+<!-- Saved Results Modal -->
+<div id="historyModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; overflow: auto;">
+    <div style="background: #0d1425; margin: 2rem auto; max-width: 800px; border-radius: 1rem; padding: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+            <h3>📚 Saved Results</h3>
+            <button id="closeHistoryBtn" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+        <div id="historyList" style="max-height: 500px; overflow-y: auto;">
+            <p>Loading...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Save result button
+document.getElementById('saveResultBtn')?.addEventListener('click', async () => {
+    if (!currentJobId) return;
+    
+    const saveBtn = document.getElementById('saveResultBtn');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="processing">💾 Saving...</span>';
+    
+    try {
+        const response = await fetch(`/save_result/${currentJobId}`, { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('✅ Result saved successfully! You can view it in "Saved Results".');
+        } else {
+            alert('Failed to save result');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Failed to save result');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '💾 Save This Result';
+    }
+});
+
+// View saved results
+document.getElementById('viewHistoryBtn')?.addEventListener('click', async () => {
+    const modal = document.getElementById('historyModal');
+    modal.style.display = 'block';
+    
+    const listDiv = document.getElementById('historyList');
+    listDiv.innerHTML = '<p>Loading...</p>';
+    
+    try {
+        const response = await fetch('/list_saved_results');
+        const data = await response.json();
+        
+        if (data.results.length === 0) {
+            listDiv.innerHTML = '<p>No saved results yet. Analyze a file and click "Save This Result" to keep it.</p>';
+        } else {
+            let html = '<table style="width: 100%; border-collapse: collapse;">';
+            html += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.1);"><th style="text-align: left; padding: 0.5rem;">File</th><th style="text-align: left; padding: 0.5rem;">Date</th><th style="text-align: left; padding: 0.5rem;">Size</th><th style="text-align: left; padding: 0.5rem;">Actions</th></tr>';
+            
+            for (const result of data.results) {
+                const date = new Date(result.modified).toLocaleString();
+                html += `<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                            <td style="padding: 0.5rem;">${escapeHtml(result.filename)}</td>
+                            <td style="padding: 0.5rem;">${date}</td>
+                            <td style="padding: 0.5rem;">${(result.size / 1024).toFixed(1)} KB</td>
+                            <td style="padding: 0.5rem;">
+                                <a href="${result.url}" download style="color: #60a5fa; margin-right: 0.5rem;">📄 Download</a>
+                                <button onclick="deleteResult('${result.filename}')" style="background: none; border: none; color: #ef4444; cursor: pointer;">🗑 Delete</button>
+                            </td>
+                         </tr>`;
+            }
+            html += '</table>';
+            listDiv.innerHTML = html;
+        }
+    } catch (err) {
+        console.error(err);
+        listDiv.innerHTML = '<p>Error loading saved results</p>';
+    }
+});
+
+// Close modal
+document.getElementById('closeHistoryBtn')?.addEventListener('click', () => {
+    document.getElementById('historyModal').style.display = 'none';
+});
+
+// Delete saved result
+async function deleteResult(filename) {
+    if (!confirm('Delete this saved result?')) return;
+    
+    try {
+        const response = await fetch(`/delete_saved/${filename}`, { method: 'DELETE' });
+        if (response.ok) {
+            // Refresh the list
+            document.getElementById('viewHistoryBtn').click();
+        } else {
+            alert('Failed to delete');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Failed to delete');
+    }
+}
+
+// Show save button when analysis completes
+function showSaveButton() {
+    const saveBtn = document.getElementById('saveResultBtn');
+    if (saveBtn) saveBtn.style.display = 'inline-block';
+}
+
+// Call this in displayResults and displayBatchResults
+function originalDisplayResults(data) {
+    // ... existing code ...
+    showSaveButton();
+}
+</script>

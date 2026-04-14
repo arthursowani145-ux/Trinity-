@@ -11,3 +11,4 @@ physionet.org/
 !requirements.txt
 venv/
 .env
+saved_results/
