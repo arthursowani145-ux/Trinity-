@@ -565,13 +565,12 @@ def debug_job(job_id):
         'status': job.get('status'),
     })
 
-if __name__ == '__main__':
-    print("=" * 60)
+if __name__ == "__main__":
     print("🧠 Trinity Web App v3.0 - CLINICAL EDITION")
     print("=" * 60)
-    print(f"URL: http://localhost:5000")
+    print("URL: http://localhost:5000")
     print("=" * 60)
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=False)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
 
 @app.route('/analyze_url', methods=['POST'])
 def analyze_url():
