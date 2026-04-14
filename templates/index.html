@@ -3,227 +3,776 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Trinity | Clinical Seizure Prediction</title>
+    <title>Trinity | Seizure Prediction Engine</title>
     <script src="https://cdn.plot.ly/plotly-3.1.0.min.js" charset="utf-8"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --black: #000000;
+            --deep: #030303;
+            --surface: #0a0a0a;
+            --panel: #0f0f0f;
+            --border: rgba(255,255,255,0.06);
+            --border-bright: rgba(255,255,255,0.15);
+            --white: #ffffff;
+            --off-white: #e8e8e8;
+            --dim: #666666;
+            --accent: #00ff88;
+            --accent-dim: rgba(0,255,136,0.15);
+            --accent-glow: rgba(0,255,136,0.4);
+            --red: #ff3333;
+            --red-dim: rgba(255,51,51,0.15);
+            --amber: #ffaa00;
+            --amber-dim: rgba(255,170,0,0.15);
+            --blue: #0088ff;
+            --blue-dim: rgba(0,136,255,0.1);
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #0a0f1e 0%, #0d1425 100%);
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--black);
             min-height: 100vh;
-            color: #e2e8f0;
-            padding: 1rem;
+            color: var(--white);
+            overflow-x: hidden;
         }
-        
-        .container { max-width: 1200px; margin: 0 auto; }
-        
-        .header { text-align: center; margin-bottom: 1.5rem; }
-        .logo { font-size: 2.5rem; margin-bottom: 0.25rem; }
-        h1 { font-size: 1.8rem; background: linear-gradient(135deg, #60a5fa, #a855f7); -webkit-background-clip: text; background-clip: text; color: transparent; }
-        .tagline { font-size: 0.8rem; color: #94a3b8; }
-        
-        .stats { display: flex; justify-content: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-        .stat-card { background: rgba(255,255,255,0.05); border-radius: 0.75rem; padding: 0.75rem; text-align: center; min-width: 80px; }
-        .stat-number { font-size: 1.2rem; font-weight: 700; color: #60a5fa; }
-        .stat-label { font-size: 0.6rem; color: #94a3b8; }
-        
-        .mode-selector { display: flex; justify-content: center; gap: 0.75rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-        .mode-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 0.5rem 1rem; border-radius: 2rem; cursor: pointer; font-size: 0.8rem; }
-        .mode-btn.active { background: linear-gradient(135deg, #60a5fa, #a855f7); border-color: transparent; }
-        
-        .upload-card { background: rgba(255,255,255,0.05); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1.5rem; }
-        
-        .drop-zone { border: 2px dashed rgba(96,165,250,0.4); border-radius: 0.75rem; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.3s; }
-        .drop-zone:hover, .drop-zone.drag-over { border-color: #60a5fa; background: rgba(96,165,250,0.05); }
-        
-        .file-input-btn { 
-            background: linear-gradient(135deg, #60a5fa, #a855f7); 
-            border: none; 
-            color: white; 
-            padding: 0.6rem 1.5rem; 
-            border-radius: 2rem; 
-            font-size: 0.9rem; 
-            font-weight: 600; 
-            cursor: pointer; 
-            margin-top: 1rem;
-            display: inline-block;
+
+        /* Scanline overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0,0,0,0.03) 2px,
+                rgba(0,0,0,0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
         }
-        
-        .btn { background: linear-gradient(135deg, #60a5fa, #a855f7); border: none; color: white; padding: 0.6rem 1.5rem; border-radius: 2rem; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
-        .btn-secondary { background: rgba(255,255,255,0.1); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        
-        .progress-container { margin-top: 1rem; display: none; }
-        .progress-bar { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
-        .progress-fill { height: 100%; background: linear-gradient(90deg, #60a5fa, #a855f7); width: 0%; transition: width 0.3s; }
-        
-        .results-card { background: rgba(255,255,255,0.05); border-radius: 1rem; padding: 1.25rem; display: none; }
-        
-        .clinical-graph { 
-            margin: 1rem 0;
-            background: white;
-            border-radius: 0.5rem;
-            padding: 0.5rem;
+
+        /* Noise grain */
+        body::after {
+            content: '';
+            position: fixed;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9998;
+            opacity: 0.4;
         }
-        .clinical-graph img {
-            width: 100%;
-            border-radius: 0.25rem;
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1rem 4rem;
         }
-        
-        .clinical-report {
-            background: rgba(0,0,0,0.3);
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin: 1rem 0;
-            font-family: monospace;
-            font-size: 0.8rem;
-            white-space: pre-wrap;
-            line-height: 1.4;
+
+        /* ── HEADER ── */
+        .header {
+            text-align: center;
+            padding: 3rem 0 2.5rem;
+            position: relative;
         }
-        
-        .raw-output { background: #0a0a0a; border-radius: 0.5rem; padding: 0.75rem; font-family: monospace; font-size: 0.6rem; overflow-x: auto; max-height: 200px; margin-top: 1rem; }
-        
-        .folder-selector { 
-            background: rgba(0,0,0,0.3); 
-            border-radius: 0.5rem; 
-            padding: 0.75rem; 
-            margin-top: 1rem;
-        }
-        .folder-path { 
-            font-family: monospace; 
-            font-size: 0.7rem; 
-            color: #60a5fa; 
-            word-break: break-all;
-            background: rgba(0,0,0,0.3);
-            padding: 0.5rem;
-            border-radius: 0.25rem;
-            margin-top: 0.5rem;
-        }
-        
-        .tab-bar {
-            display: flex;
-            gap: 0.5rem;
+
+        .header-eyebrow {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            letter-spacing: 0.4em;
+            color: var(--accent);
+            text-transform: uppercase;
             margin-bottom: 1rem;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            padding-bottom: 0.5rem;
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards 0.2s;
         }
-        .tab {
-            padding: 0.5rem 1rem;
+
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(2.5rem, 8vw, 4.5rem);
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            color: var(--white);
+            line-height: 1;
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards 0.4s;
+        }
+
+        .header h1 span {
+            color: var(--accent);
+        }
+
+        .header-sub {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--dim);
+            letter-spacing: 0.15em;
+            margin-top: 0.75rem;
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards 0.6s;
+        }
+
+        .header-line {
+            width: 1px;
+            height: 40px;
+            background: linear-gradient(to bottom, transparent, var(--accent), transparent);
+            margin: 1.5rem auto 0;
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards 0.8s;
+        }
+
+        /* ── MODE SELECTOR ── */
+        .mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 0;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-bright);
+            border-radius: 2px;
+            overflow: hidden;
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards 1s;
+        }
+
+        .mode-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--dim);
+            padding: 0.75rem 1.5rem;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.7rem;
+            letter-spacing: 0.15em;
             cursor: pointer;
-            border-radius: 0.5rem;
-            font-size: 0.8rem;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            position: relative;
         }
-        .tab.active {
-            background: rgba(96,165,250,0.2);
-            color: #60a5fa;
+
+        .mode-btn::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 2px;
+            background: var(--accent);
+            transform: scaleX(0);
+            transition: transform 0.2s;
         }
-        .tab-content {
-            display: none;
+
+        .mode-btn.active {
+            color: var(--white);
+            background: rgba(255,255,255,0.03);
         }
-        .tab-content.active {
+
+        .mode-btn.active::after {
+            transform: scaleX(1);
+        }
+
+        .mode-btn:not(.active):hover {
+            color: var(--off-white);
+        }
+
+        /* ── PANELS ── */
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            margin-bottom: 1px;
+            position: relative;
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards;
+        }
+
+        .panel:nth-child(1) { animation-delay: 1.1s; }
+        .panel:nth-child(2) { animation-delay: 1.2s; }
+        .panel:nth-child(3) { animation-delay: 1.3s; }
+
+        .panel-header {
+            padding: 0.75rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .panel-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent-glow);
+        }
+
+        .panel-label {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.6rem;
+            letter-spacing: 0.3em;
+            color: var(--dim);
+            text-transform: uppercase;
+        }
+
+        .panel-body {
+            padding: 1.5rem 1.25rem;
+        }
+
+        /* ── DROP ZONE ── */
+        .drop-zone {
+            border: 1px dashed var(--border-bright);
+            padding: 2.5rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .drop-zone::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--accent-dim);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .drop-zone:hover::before,
+        .drop-zone.drag-over::before {
+            opacity: 1;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.drag-over {
+            border-color: var(--accent);
+        }
+
+        .drop-icon {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
             display: block;
         }
-        
-        footer { text-align: center; color: #475569; font-size: 0.65rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); }
-        
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .processing { animation: pulse 1.5s infinite; }
-        .file-info { margin-top: 0.75rem; padding: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 0.5rem; display: none; font-size: 0.75rem; text-align: center; word-break: break-all; }
+
+        .drop-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--off-white);
+            letter-spacing: 0.05em;
+            margin-bottom: 0.4rem;
+        }
+
+        .drop-formats {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.55rem;
+            color: var(--dim);
+            letter-spacing: 0.1em;
+        }
+
+        .select-btn {
+            display: inline-block;
+            margin-top: 1.25rem;
+            padding: 0.6rem 2rem;
+            background: transparent;
+            border: 1px solid var(--border-bright);
+            color: var(--off-white);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .select-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        /* ── INPUT ROWS ── */
+        .input-row {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .input-label {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.55rem;
+            letter-spacing: 0.2em;
+            color: var(--dim);
+            text-transform: uppercase;
+            white-space: nowrap;
+            min-width: 60px;
+        }
+
+        .input-field {
+            flex: 1;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--off-white);
+            padding: 0.55rem 0.75rem;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: var(--accent);
+        }
+
+        .input-field::placeholder {
+            color: #333;
+        }
+
+        .ghost-btn {
+            background: transparent;
+            border: 1px solid var(--border-bright);
+            color: var(--dim);
+            padding: 0.55rem 1rem;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.6rem;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .ghost-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* ── FILE INFO ── */
+        .file-info {
+            display: none;
+            padding: 0.75rem 1.25rem;
+            border-top: 1px solid var(--border);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--accent);
+            letter-spacing: 0.05em;
+        }
+
+        /* ── ANALYZE BAR ── */
+        .analyze-bar {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .patient-input {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--off-white);
+            padding: 0.6rem 0.75rem;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            outline: none;
+            width: 140px;
+            transition: border-color 0.2s;
+        }
+
+        .patient-input:focus { border-color: var(--accent); }
+        .patient-input::placeholder { color: #333; }
+
+        .analyze-btn {
+            flex: 1;
+            background: var(--accent);
+            border: none;
+            color: var(--black);
+            padding: 0.7rem 1.5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .analyze-btn:hover:not(:disabled) {
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .analyze-btn:disabled {
+            background: #1a1a1a;
+            color: #333;
+            cursor: not-allowed;
+        }
+
+        /* ── PROGRESS ── */
+        .progress-container {
+            display: none;
+            padding: 1.25rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .progress-track {
+            height: 2px;
+            background: #111;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.4s ease;
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .progress-text {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.6rem;
+            color: var(--dim);
+            letter-spacing: 0.1em;
+            margin-top: 0.6rem;
+            text-align: center;
+        }
+
+        /* ── RESULTS ── */
+        .results-panel {
+            display: none;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            margin-top: 1px;
+        }
+
+        .tab-bar {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 0.75rem;
+            text-align: center;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.6rem;
+            letter-spacing: 0.15em;
+            color: var(--dim);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            border-right: 1px solid var(--border);
+        }
+
+        .tab:last-child { border-right: none; }
+
+        .tab.active {
+            color: var(--white);
+            background: rgba(255,255,255,0.03);
+            border-bottom: 2px solid var(--accent);
+        }
+
+        .tab:hover:not(.active) { color: var(--off-white); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .tab-body { padding: 1.25rem; }
+
+        .clinical-graph {
+            background: #000;
+            border: 1px solid var(--border);
+        }
+
+        .clinical-graph img { width: 100%; display: block; }
+
+        .clinical-report {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.7rem;
+            line-height: 1.7;
+            color: var(--off-white);
+            white-space: pre-wrap;
+            padding: 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+        }
+
+        .raw-output {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.6rem;
+            color: #555;
+            background: #000;
+            padding: 1rem;
+            overflow-x: auto;
+            max-height: 300px;
+            border: 1px solid var(--border);
+            white-space: pre-wrap;
+        }
+
+        /* ── ACTION BAR ── */
+        .action-bar {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+
+        .action-btn {
+            background: transparent;
+            border: 1px solid var(--border-bright);
+            color: var(--dim);
+            padding: 0.5rem 1rem;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.6rem;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            border-color: var(--white);
+            color: var(--white);
+        }
+
+        /* ── HISTORY MODAL ── */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.92);
+            z-index: 1000;
+            overflow: auto;
+        }
+
+        .modal-inner {
+            background: var(--panel);
+            border: 1px solid var(--border-bright);
+            margin: 2rem auto;
+            max-width: 800px;
+            padding: 1.5rem;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            letter-spacing: 0.15em;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--dim);
+            font-size: 1.25rem;
+            cursor: pointer;
+        }
+
+        .modal-close:hover { color: var(--white); }
+
+        /* ── FOOTER ── */
+        footer {
+            text-align: center;
+            padding: 3rem 0 1rem;
+        }
+
+        .footer-line {
+            width: 100%;
+            height: 1px;
+            background: var(--border);
+            margin-bottom: 1.5rem;
+        }
+
+        .footer-text {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.55rem;
+            color: #222;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+        }
+
+        /* ── ANIMATIONS ── */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            49% { opacity: 1; }
+            50% { opacity: 0; }
+            99% { opacity: 0; }
+        }
+
+        .processing { animation: pulse 1.2s ease infinite; }
+
+        .cursor::after {
+            content: '█';
+            animation: blink 1s step-end infinite;
+            color: var(--accent);
+            font-size: 0.7em;
+        }
+
+        /* ── UPLOAD WRAPPER ── */
+        .upload-wrapper {
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards 1.2s;
+        }
+
+        /* Plotly chart dark override */
+        .plotly-graph-div {
+            background: transparent !important;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+
+        <!-- HEADER -->
         <div class="header">
-            <div class="logo">🧠⚡</div>
-            <h1>Trinity Clinical</h1>
-            <div class="tagline">Seizure risk assessment with clinical visualization</div>
+            <div class="header-eyebrow">Neural Dynamics Engine · v3.0</div>
+            <h1>TRINITY<span>.</span></h1>
+            <div class="header-sub">Surface · Depth · Time · Emergence</div>
+            <div class="header-line"></div>
         </div>
-        
-        <div class="stats">
-            <div class="stat-card"><div class="stat-number">139s</div><div class="stat-label">Avg Warning</div></div>
-            <div class="stat-card"><div class="stat-number">100%</div><div class="stat-label">Detection</div></div>
-            <div class="stat-card"><div class="stat-number">26</div><div class="stat-label">Self-Corrections</div></div>
-        </div>
-        
+
+        <!-- MODE SELECTOR -->
         <div class="mode-selector">
-            <div class="mode-btn active" data-mode="quick">⚡ Quick Prediction</div>
-            <div class="mode-btn" data-mode="deep">💚 Deep Dive</div>
+            <button class="mode-btn active" data-mode="quick">⚡ Quick Prediction</button>
+            <button class="mode-btn" data-mode="deep">◈ Deep Dive</button>
         </div>
-        
-        <div class="upload-card">
-            <div class="drop-zone" id="dropZone">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">📂</div>
-                <p>Tap to select EEG file</p>
-                <p style="font-size: 0.7rem; color: #64748b;">EDF, BDF, GDF, FIF, SET, CNT, NWB, XDF, ZIP</p>
-                <input type="file" id="fileInput" accept=".edf,.bdf,.gdf,.fif,.set,.cnt,.nwb,.xdf,.zip" style="display: none;">
-                <button class="file-input-btn" id="selectFileBtn">📁 Select File</button>
-            </div>
-            
-            <div class="folder-selector">
-                <div style="font-size: 0.8rem; margin-bottom: 0.5rem;">📁 Or enter file path manually:</div>
-                <input type="text" id="manualPath" placeholder="/data/data/com.termux/files/home/storage/trinity_data/chb03/chb03_01.edf" 
-                       style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.6rem; border-radius: 0.5rem; color: white; font-size: 0.7rem; font-family: monospace;">
-                <button class="btn btn-secondary" id="loadPathBtn" style="margin-top: 0.5rem; width: 100%;">📂 Load from Path</button>
-            </div>
-            
-            <div class="folder-selector" style="margin-top: 0.75rem;">
-                <div style="font-size: 0.8rem; margin-bottom: 0.5rem;">🌐 Or fetch from URL:</div>
-                <input type="text" id="urlInput" placeholder="https://physionet.org/files/chbmit/1.0.0/chb03/chb03_01.edf"
-                       style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.6rem; border-radius: 0.5rem; color: white; font-size: 0.7rem; font-family: monospace;">
-                <button class="btn btn-secondary" id="fetchUrlBtn" style="margin-top: 0.5rem; width: 100%;">🌐 Fetch from URL</button>
-            </div>
-            <div id="fileInfo" class="file-info"></div>
-            <div style="margin-top: 1rem; display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
-                <input type="text" id="patientId" placeholder="Patient ID" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.5rem; border-radius: 0.5rem; color: white; width: 150px; font-size: 0.8rem;">
-                <button class="btn" id="analyzeBtn" disabled>Analyze</button>
-            </div>
-        </div>
-        
-        <div class="progress-container" id="progressContainer">
-            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-            <p style="text-align: center; margin-top: 0.5rem; font-size: 0.8rem;" id="progressText">Queued...</p>
-        </div>
-        
-        <div class="results-card" id="resultsCard">
-            <div class="tab-bar">
-                <div class="tab active" data-tab="graph">📊 Clinical Graph</div>
-                <div class="tab" data-tab="report">📋 Clinical Report</div>
-                <div class="tab" data-tab="raw">💻 Technical Output</div>
-            </div>
-            
-            <div id="tab-graph" class="tab-content active">
-                <div class="clinical-graph" id="clinicalGraph">
-                    <p style="text-align: center; color: #64748b;">Analysis complete. Loading clinical graph...</p>
+
+        <!-- UPLOAD PANEL -->
+        <div class="upload-wrapper">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-dot"></div>
+                    <div class="panel-label">EEG Input</div>
+                </div>
+
+                <!-- Drop Zone -->
+                <div class="panel-body" style="padding: 1.25rem;">
+                    <div class="drop-zone" id="dropZone">
+                        <span class="drop-icon">◈</span>
+                        <div class="drop-title">Drop EEG file here</div>
+                        <div class="drop-formats">EDF · BDF · GDF · FIF · SET · CNT · NWB · XDF · ZIP</div>
+                        <input type="file" id="fileInput" accept=".edf,.bdf,.gdf,.fif,.set,.cnt,.nwb,.xdf,.zip" style="display:none;">
+                        <button class="select-btn" id="selectFileBtn">SELECT FILE</button>
+                    </div>
+                </div>
+
+                <!-- Path input -->
+                <div class="input-row">
+                    <span class="input-label">PATH</span>
+                    <input type="text" class="input-field" id="manualPath"
+                           placeholder="/storage/trinity_data/chb03/chb03_01.edf">
+                    <button class="ghost-btn" id="loadPathBtn">LOAD</button>
+                </div>
+
+                <!-- URL input -->
+                <div class="input-row">
+                    <span class="input-label">URL</span>
+                    <input type="text" class="input-field" id="urlInput"
+                           placeholder="https://physionet.org/files/chbmit/1.0.0/chb03/chb03_01.edf">
+                    <button class="ghost-btn" id="fetchUrlBtn">FETCH</button>
+                </div>
+
+                <!-- File info -->
+                <div class="file-info" id="fileInfo"></div>
+
+                <!-- Analyze bar -->
+                <div class="analyze-bar">
+                    <input type="text" class="patient-input" id="patientId" placeholder="PATIENT ID">
+                    <button class="analyze-btn" id="analyzeBtn" disabled>ANALYZE</button>
+                </div>
+
+                <!-- Progress -->
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-track">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text cursor" id="progressText">Initializing</div>
                 </div>
             </div>
-            
-            <div id="tab-report" class="tab-content">
-                <div class="clinical-report" id="clinicalReport"></div>
-            </div>
-            
-            <div id="tab-raw" class="tab-content">
-                <pre class="raw-output" id="rawOutput"></pre>
-            </div>
-            
-            <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
-                <button class="btn btn-secondary" id="downloadBtn">📄 Download JSON</button>
-                <button class="btn btn-secondary" id="clearBtn">🗑 Clear</button>
+
+            <!-- RESULTS -->
+            <div class="results-panel" id="resultsCard">
+                <div class="tab-bar">
+                    <div class="tab active" data-tab="graph">◈ Clinical Graph</div>
+                    <div class="tab" data-tab="report">▣ Clinical Report</div>
+                    <div class="tab" data-tab="raw">⌘ Technical</div>
+                </div>
+
+                <div id="tab-graph" class="tab-content active">
+                    <div class="tab-body">
+                        <div class="clinical-graph" id="clinicalGraph">
+                            <p style="text-align:center; padding:2rem; font-family:'Share Tech Mono',monospace; font-size:0.65rem; color:#333;">LOADING CLINICAL GRAPH...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-report" class="tab-content">
+                    <div class="tab-body">
+                        <div class="clinical-report" id="clinicalReport">AWAITING ANALYSIS...</div>
+                    </div>
+                </div>
+
+                <div id="tab-raw" class="tab-content">
+                    <div class="tab-body">
+                        <pre class="raw-output" id="rawOutput">NO DATA</pre>
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <button class="action-btn" id="saveResultBtn" style="display:none;">SAVE</button>
+                    <button class="action-btn" id="viewHistoryBtn">HISTORY</button>
+                    <button class="action-btn" id="downloadBtn">EXPORT JSON</button>
+                    <button class="action-btn" id="clearBtn">CLEAR</button>
+                </div>
             </div>
         </div>
-        
+
+        <!-- FOOTER -->
         <footer>
-            <p>Trinity v3.0 | Clinical decision support | Research use only</p>
+            <div class="footer-line"></div>
+            <div class="footer-text">Trinity · Clinical Decision Support · Research Use Only</div>
         </footer>
     </div>
-    
+
+    <!-- HISTORY MODAL -->
+    <div class="modal" id="historyModal">
+        <div class="modal-inner">
+            <div class="modal-header">
+                <div class="modal-title">SAVED RESULTS</div>
+                <button class="modal-close" id="closeHistoryBtn">×</button>
+            </div>
+            <div id="historyList" style="font-family:'Share Tech Mono',monospace; font-size:0.65rem; color:#555;">
+                Loading...
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentJobId = null;
         let statusInterval = null;
         let currentMode = 'quick';
         let selectedFile = null;
         let isBatch = false;
-        
+
         // Tab switching
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -234,7 +783,7 @@
                 document.getElementById(`tab-${tabId}`).classList.add('active');
             });
         });
-        
+
         // Mode selection
         document.querySelectorAll('.mode-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -243,131 +792,125 @@
                 currentMode = btn.dataset.mode;
             });
         });
-        
+
         // File selection
         const selectFileBtn = document.getElementById('selectFileBtn');
         const fileInput = document.getElementById('fileInput');
         const dropZone = document.getElementById('dropZone');
         const analyzeBtn = document.getElementById('analyzeBtn');
         const fileInfo = document.getElementById('fileInfo');
-        const manualPath = document.getElementById('manualPath');
-        const loadPathBtn = document.getElementById('loadPathBtn');
-        
-        selectFileBtn.addEventListener('click', () => fileInput.click());
+
+        selectFileBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
         dropZone.addEventListener('click', () => fileInput.click());
-        
+
         fileInput.addEventListener('change', (e) => {
             if (e.target.files && e.target.files[0]) {
                 selectedFile = e.target.files[0];
                 updateFileInfo();
             }
         });
-        
-        loadPathBtn.addEventListener('click', async () => {
-            const path = manualPath.value.trim();
-            if (!path) {
-                alert('Please enter a file path');
-                return;
-            }
-            
-            const patientId = document.getElementById('patientId').value.trim();
-            
-            document.getElementById('progressContainer').style.display = 'block';
-            document.getElementById('resultsCard').style.display = 'none';
-            document.getElementById('progressFill').style.width = '0%';
-            document.getElementById('progressText').textContent = 'Loading file from path...';
-            loadPathBtn.disabled = true;
-            loadPathBtn.textContent = 'Loading...';
-            
-            try {
-                const response = await fetch('/analyze_path', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        filepath: path,
-                        mode: currentMode,
-                        patient_id: patientId
-                    })
-                });
-                const data = await response.json();
-                if (data.error) {
-                    alert(data.error);
-                    loadPathBtn.disabled = false;
-                    loadPathBtn.textContent = '📂 Load from Path';
-                    return;
-                }
-                currentJobId = data.job_id;
-                selectedFile = { name: path.split('/').pop() };
+
+        // Drag & drop
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files[0]) {
+                selectedFile = e.dataTransfer.files[0];
                 updateFileInfo();
-                if (statusInterval) clearInterval(statusInterval);
-                statusInterval = setInterval(checkStatus, 2000);
-            } catch (err) {
-                console.error(err);
-                alert('Failed to load file');
-                loadPathBtn.disabled = false;
-                loadPathBtn.textContent = '📂 Load from Path';
             }
         });
-        
+
         function updateFileInfo() {
             if (selectedFile) {
                 isBatch = selectedFile.name.endsWith('.zip');
-                const typeText = isBatch ? '📦 Batch ZIP' : '📄 EEG';
                 fileInfo.style.display = 'block';
-                fileInfo.innerHTML = `<strong>${typeText}:</strong> ${selectedFile.name}`;
+                fileInfo.textContent = `▸ ${selectedFile.name}${isBatch ? ' [BATCH]' : ''}`;
                 analyzeBtn.disabled = false;
-                dropZone.style.borderColor = '#60a5fa';
-                analyzeBtn.textContent = isBatch ? '📦 Batch Process' : '🔬 Analyze';
             } else {
                 fileInfo.style.display = 'none';
                 analyzeBtn.disabled = true;
-                dropZone.style.borderColor = 'rgba(96,165,250,0.4)';
-                analyzeBtn.textContent = 'Analyze';
             }
         }
-        
+
+        // Path loader
+        document.getElementById('loadPathBtn').addEventListener('click', async () => {
+            const path = document.getElementById('manualPath').value.trim();
+            if (!path) return;
+            const patientId = document.getElementById('patientId').value.trim();
+            startProgress('Loading from path...');
+            try {
+                const res = await fetch('/analyze_path', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filepath: path, mode: currentMode, patient_id: patientId })
+                });
+                const data = await res.json();
+                if (data.error) { alert(data.error); resetUI(); return; }
+                currentJobId = data.job_id;
+                pollStatus();
+            } catch (err) { alert('Failed'); resetUI(); }
+        });
+
+        // URL fetcher
+        document.getElementById('fetchUrlBtn').addEventListener('click', async () => {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) return;
+            const patientId = document.getElementById('patientId').value.trim();
+            startProgress('Fetching from URL...');
+            try {
+                const res = await fetch('/analyze_url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, mode: currentMode, patient_id: patientId })
+                });
+                const data = await res.json();
+                if (data.error) { alert(data.error); resetUI(); return; }
+                currentJobId = data.job_id;
+                pollStatus();
+            } catch (err) { alert('Failed'); resetUI(); }
+        });
+
+        // Analyze button
         analyzeBtn.addEventListener('click', async () => {
             if (!selectedFile) return;
-            
             const patientId = document.getElementById('patientId').value.trim();
             const formData = new FormData();
             formData.append('file', selectedFile);
             formData.append('patient_id', patientId);
             formData.append('mode', currentMode);
-            
+            startProgress('Uploading...');
+            analyzeBtn.innerHTML = '<span class="processing">PROCESSING</span>';
+            try {
+                const endpoint = isBatch ? '/upload_batch' : '/upload';
+                const res = await fetch(endpoint, { method: 'POST', body: formData });
+                const data = await res.json();
+                currentJobId = data.job_id;
+                pollStatus();
+            } catch (err) { alert('Upload failed'); resetUI(); }
+        });
+
+        function startProgress(msg) {
             document.getElementById('progressContainer').style.display = 'block';
             document.getElementById('resultsCard').style.display = 'none';
             document.getElementById('progressFill').style.width = '0%';
-            document.getElementById('progressText').textContent = 'Uploading...';
-            analyzeBtn.disabled = true;
-            analyzeBtn.innerHTML = '<span class="processing">⏳ Uploading...</span>';
-            
-            try {
-                const endpoint = isBatch ? '/upload_batch' : '/upload';
-                const response = await fetch(endpoint, { method: 'POST', body: formData });
-                const data = await response.json();
-                currentJobId = data.job_id;
-                analyzeBtn.innerHTML = '<span class="processing">🧠 Analyzing...</span>';
-                if (statusInterval) clearInterval(statusInterval);
-                statusInterval = setInterval(checkStatus, 2000);
-            } catch (err) {
-                console.error(err);
-                alert('Upload failed');
-                resetUI();
-            }
-        });
-        
+            document.getElementById('progressText').textContent = msg;
+        }
+
+        function pollStatus() {
+            if (statusInterval) clearInterval(statusInterval);
+            statusInterval = setInterval(checkStatus, 2000);
+        }
+
         async function checkStatus() {
             if (!currentJobId) return;
             try {
                 const res = await fetch(`/status/${currentJobId}`);
                 const data = await res.json();
                 document.getElementById('progressFill').style.width = `${data.progress}%`;
-                if (data.batch && data.current_file) {
-                    document.getElementById('progressText').innerHTML = `${data.status}... ${data.progress}%<br>📄 ${data.current_file}`;
-                } else {
-                    document.getElementById('progressText').textContent = `${data.status}... ${data.progress}%`;
-                }
+                document.getElementById('progressText').textContent =
+                    data.current_file ? `${data.status} · ${data.current_file}` : `${data.status} · ${data.progress}%`;
                 if (data.status === 'completed') {
                     clearInterval(statusInterval);
                     displayResults(data);
@@ -379,257 +922,104 @@
                 }
             } catch (err) { console.error(err); }
         }
-        
+
         async function displayResults(data) {
             document.getElementById('resultsCard').style.display = 'block';
-            
-            // Load clinical graph
+            document.getElementById('saveResultBtn').style.display = 'inline-block';
+
+            // Clinical graph
             const graphDiv = document.getElementById('clinicalGraph');
-            graphDiv.innerHTML = '<p style="text-align: center;">Loading clinical graph...</p>';
-            
+            graphDiv.innerHTML = '<p style="text-align:center;padding:2rem;font-family:\'Share Tech Mono\',monospace;font-size:0.65rem;color:#333;">RENDERING...</p>';
+            const img = document.createElement('img');
+            img.src = `/clinical_graph/${currentJobId}?t=${Date.now()}`;
+            img.style.width = '100%';
+            img.onload = () => { graphDiv.innerHTML = ''; graphDiv.appendChild(img); };
+            img.onerror = () => { graphDiv.innerHTML = '<p style="text-align:center;padding:2rem;font-family:\'Share Tech Mono\',monospace;font-size:0.65rem;color:#333;">GRAPH UNAVAILABLE</p>'; };
+
+            // Clinical report
             try {
-                const img = document.createElement('img');
-                img.src = `/clinical_graph/${currentJobId}?t=${Date.now()}`;
-                img.style.width = '100%';
-                img.style.borderRadius = '0.5rem';
-                img.onload = () => {
-                    graphDiv.innerHTML = '';
-                    graphDiv.appendChild(img);
-                };
-                img.onerror = () => {
-                    graphDiv.innerHTML = '<p style="text-align: center; color: #e74c3c;">⚠️ Graph not available for this analysis</p>';
-                };
-            } catch (err) {
-                graphDiv.innerHTML = '<p style="text-align: center; color: #e74c3c;">⚠️ Graph generation failed</p>';
-            }
-            
-            // Load clinical report
-            try {
-                const reportRes = await fetch(`/clinical_report_text/${currentJobId}`);
-                const reportData = await reportRes.json();
-                document.getElementById('clinicalReport').innerHTML = `<pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.8rem;">${escapeHtml(reportData.report)}</pre>`;
-            } catch (err) {
-                document.getElementById('clinicalReport').innerHTML = '<p>Report not available</p>';
-            }
-            
-            // Load raw output
+                const repRes = await fetch(`/clinical_report_text/${currentJobId}`);
+                const repData = await repRes.json();
+                document.getElementById('clinicalReport').textContent = repData.report || 'REPORT UNAVAILABLE';
+            } catch { document.getElementById('clinicalReport').textContent = 'REPORT UNAVAILABLE'; }
+
+            // Raw output
             if (data.result && data.result.raw_output) {
                 document.getElementById('rawOutput').textContent = data.result.raw_output;
-            } else if (data.results) {
-                let raw = '';
-                for (const r of data.results.slice(0, 5)) {
-                    if (r.result && r.result.raw_output) {
-                        raw += `=== ${r.file} ===\n${r.result.raw_output.substring(0, 500)}...\n\n`;
-                    }
-                }
-                document.getElementById('rawOutput').textContent = raw || 'Raw output not available';
             }
-            
+
             document.getElementById('downloadBtn').onclick = () => window.open(`/download/${currentJobId}`, '_blank');
         }
-        
+
+        function resetUI() {
+            analyzeBtn.disabled = !selectedFile;
+            analyzeBtn.textContent = 'ANALYZE';
+            document.getElementById('loadPathBtn').textContent = 'LOAD';
+            document.getElementById('fetchUrlBtn').textContent = 'FETCH';
+        }
+
+        // Clear
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            document.getElementById('resultsCard').style.display = 'none';
+            document.getElementById('progressContainer').style.display = 'none';
+            if (statusInterval) clearInterval(statusInterval);
+            currentJobId = null; selectedFile = null;
+            fileInput.value = '';
+            fileInfo.style.display = 'none';
+            analyzeBtn.disabled = true;
+        });
+
+        // Save result
+        document.getElementById('saveResultBtn').addEventListener('click', async () => {
+            if (!currentJobId) return;
+            try {
+                const res = await fetch(`/save_result/${currentJobId}`, { method: 'POST' });
+                const data = await res.json();
+                alert(data.success ? 'Result saved.' : 'Save failed.');
+            } catch { alert('Save failed.'); }
+        });
+
+        // History
+        document.getElementById('viewHistoryBtn').addEventListener('click', async () => {
+            document.getElementById('historyModal').style.display = 'block';
+            const listDiv = document.getElementById('historyList');
+            listDiv.innerHTML = 'Loading...';
+            try {
+                const res = await fetch('/list_saved_results');
+                const data = await res.json();
+                if (!data.results.length) {
+                    listDiv.innerHTML = 'No saved results.';
+                } else {
+                    listDiv.innerHTML = data.results.map(r => `
+                        <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid #111;">
+                            <span>${escapeHtml(r.filename)}</span>
+                            <span style="color:#333;">${new Date(r.modified).toLocaleString()}</span>
+                            <span>
+                                <a href="${r.url}" download style="color:#555;margin-right:1rem;">DOWNLOAD</a>
+                                <button onclick="deleteResult('${r.filename}')" style="background:none;border:none;color:#ff3333;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:0.6rem;">DELETE</button>
+                            </span>
+                        </div>`).join('');
+                }
+            } catch { listDiv.innerHTML = 'Error loading results.'; }
+        });
+
+        document.getElementById('closeHistoryBtn').addEventListener('click', () => {
+            document.getElementById('historyModal').style.display = 'none';
+        });
+
+        async function deleteResult(filename) {
+            if (!confirm('Delete?')) return;
+            try {
+                await fetch(`/delete_saved/${filename}`, { method: 'DELETE' });
+                document.getElementById('viewHistoryBtn').click();
+            } catch { alert('Delete failed.'); }
+        }
+
         function escapeHtml(text) {
-            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
-        
-        function resetUI() {
-            analyzeBtn.disabled = false;
-            analyzeBtn.innerHTML = 'Analyze';
-            loadPathBtn.disabled = false;
-            loadPathBtn.textContent = '📂 Load from Path';
-            currentJobId = null;
-        }
-        
-        document.getElementById('clearBtn')?.addEventListener('click', () => {
-            document.getElementById('resultsCard').style.display = 'none';
-            document.getElementById('progressContainer').style.display = 'none';
-            if (statusInterval) clearInterval(statusInterval);
-            currentJobId = null;
-            selectedFile = null;
-            fileInput.value = '';
-            manualPath.value = '';
-            fileInfo.style.display = 'none';
-            analyzeBtn.disabled = true;
-            dropZone.style.borderColor = 'rgba(96,165,250,0.4)';
-        });
-        
-        // Pre-fill suggested path
-        manualPath.value = '/data/data/com.termux/files/home/storage/trinity_data/chb03/chb03_01.edf';
     </script>
 </body>
 </html>
-<!-- URL Input Section -->
-<div class="upload-card" style="margin-top: 1rem;">
-    <div class="supported-badge" style="margin-top: 0.5rem;">
-        Supports: PhysioNet, GIN, Zenodo, or any direct EDF/BDF/GDF URL
-    </div>
-</div>
-
-<script>
-// Add URL fetch functionality
-document.getElementById('fetchUrlBtn')?.addEventListener('click', async () => {
-    const url = document.getElementById('urlInput').value.trim();
-    if (!url) {
-        alert('Please enter a URL');
-        return;
-    }
-    
-    const patientId = document.getElementById('patientId').value.trim();
-    const mode = currentMode;
-    
-    document.getElementById('progressContainer').style.display = 'block';
-    document.getElementById('resultsCard').style.display = 'none';
-    document.getElementById('progressFill').style.width = '0%';
-    document.getElementById('progressText').textContent = 'Downloading from URL...';
-    document.getElementById('fetchUrlBtn').disabled = true;
-    document.getElementById('fetchUrlBtn').innerHTML = '<span class="processing">⏳ Downloading...</span>';
-    
-    try {
-        const response = await fetch('/analyze_url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                url: url,
-                mode: mode,
-                patient_id: patientId
-            })
-        });
-        const data = await response.json();
-        if (data.error) {
-            alert(data.error);
-            resetUI();
-            return;
-        }
-        currentJobId = data.job_id;
-        if (statusInterval) clearInterval(statusInterval);
-        statusInterval = setInterval(checkStatus, 2000);
-    } catch (err) {
-        console.error(err);
-        alert('Failed to fetch URL');
-        resetUI();
-    }
-});
-</script>
-<!-- Add after the analyze button -->
-<div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 1rem;">
-    <button class="btn btn-secondary" id="saveResultBtn" style="display: none;">💾 Save This Result</button>
-    <button class="btn btn-secondary" id="viewHistoryBtn">📚 View Saved Results</button>
-</div>
-
-<!-- Saved Results Modal -->
-<div id="historyModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; overflow: auto;">
-    <div style="background: #0d1425; margin: 2rem auto; max-width: 800px; border-radius: 1rem; padding: 1.5rem;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
-            <h3>📚 Saved Results</h3>
-            <button id="closeHistoryBtn" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
-        </div>
-        <div id="historyList" style="max-height: 500px; overflow-y: auto;">
-            <p>Loading...</p>
-        </div>
-    </div>
-</div>
-
-<script>
-// Save result button
-document.getElementById('saveResultBtn')?.addEventListener('click', async () => {
-    if (!currentJobId) return;
-    
-    const saveBtn = document.getElementById('saveResultBtn');
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<span class="processing">💾 Saving...</span>';
-    
-    try {
-        const response = await fetch(`/save_result/${currentJobId}`, { method: 'POST' });
-        const data = await response.json();
-        
-        if (data.success) {
-            alert('✅ Result saved successfully! You can view it in "Saved Results".');
-        } else {
-            alert('Failed to save result');
-        }
-    } catch (err) {
-        console.error(err);
-        alert('Failed to save result');
-    } finally {
-        saveBtn.disabled = false;
-        saveBtn.innerHTML = '💾 Save This Result';
-    }
-});
-
-// View saved results
-document.getElementById('viewHistoryBtn')?.addEventListener('click', async () => {
-    const modal = document.getElementById('historyModal');
-    modal.style.display = 'block';
-    
-    const listDiv = document.getElementById('historyList');
-    listDiv.innerHTML = '<p>Loading...</p>';
-    
-    try {
-        const response = await fetch('/list_saved_results');
-        const data = await response.json();
-        
-        if (data.results.length === 0) {
-            listDiv.innerHTML = '<p>No saved results yet. Analyze a file and click "Save This Result" to keep it.</p>';
-        } else {
-            let html = '<table style="width: 100%; border-collapse: collapse;">';
-            html += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.1);"><th style="text-align: left; padding: 0.5rem;">File</th><th style="text-align: left; padding: 0.5rem;">Date</th><th style="text-align: left; padding: 0.5rem;">Size</th><th style="text-align: left; padding: 0.5rem;">Actions</th></tr>';
-            
-            for (const result of data.results) {
-                const date = new Date(result.modified).toLocaleString();
-                html += `<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 0.5rem;">${escapeHtml(result.filename)}</td>
-                            <td style="padding: 0.5rem;">${date}</td>
-                            <td style="padding: 0.5rem;">${(result.size / 1024).toFixed(1)} KB</td>
-                            <td style="padding: 0.5rem;">
-                                <a href="${result.url}" download style="color: #60a5fa; margin-right: 0.5rem;">📄 Download</a>
-                                <button onclick="deleteResult('${result.filename}')" style="background: none; border: none; color: #ef4444; cursor: pointer;">🗑 Delete</button>
-                            </td>
-                         </tr>`;
-            }
-            html += '</table>';
-            listDiv.innerHTML = html;
-        }
-    } catch (err) {
-        console.error(err);
-        listDiv.innerHTML = '<p>Error loading saved results</p>';
-    }
-});
-
-// Close modal
-document.getElementById('closeHistoryBtn')?.addEventListener('click', () => {
-    document.getElementById('historyModal').style.display = 'none';
-});
-
-// Delete saved result
-async function deleteResult(filename) {
-    if (!confirm('Delete this saved result?')) return;
-    
-    try {
-        const response = await fetch(`/delete_saved/${filename}`, { method: 'DELETE' });
-        if (response.ok) {
-            // Refresh the list
-            document.getElementById('viewHistoryBtn').click();
-        } else {
-            alert('Failed to delete');
-        }
-    } catch (err) {
-        console.error(err);
-        alert('Failed to delete');
-    }
-}
-
-// Show save button when analysis completes
-function showSaveButton() {
-    const saveBtn = document.getElementById('saveResultBtn');
-    if (saveBtn) saveBtn.style.display = 'inline-block';
-}
-
-// Call this in displayResults and displayBatchResults
-function originalDisplayResults(data) {
-    // ... existing code ...
-    showSaveButton();
-}
-</script>
